@@ -1,6 +1,6 @@
 {
   "name": "xiaoaojiao",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "soho tool",
   "preferGlobal": true,
   "bin": {
