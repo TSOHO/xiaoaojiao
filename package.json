@@ -2,7 +2,10 @@
   "name": "xiaoaojiao",
   "version": "0.0.1",
   "description": "soho tool",
-  "main": "index.js",
+  "preferGlobal": true,
+  "bin": {
+    "xiaoaojiao": "bin/xiaoaojiao"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -18,5 +21,15 @@
   "bugs": {
     "url": "https://github.com/TSOHO/xiaoaojiao/issues"
   },
-  "homepage": "https://github.com/TSOHO/xiaoaojiao#readme"
+  "homepage": "https://github.com/TSOHO/xiaoaojiao#readme",
+  "dependencies": {
+    "axios": "^0.16.2",
+    "chalk": "^2.1.0",
+    "commander": "^2.11.0",
+    "inquirer": "^3.3.0",
+    "mkdirp": "^0.5.1",
+    "ncp": "^2.0.0",
+    "ora": "^1.3.0",
+    "unzip": "^0.1.11"
+  }
 }
