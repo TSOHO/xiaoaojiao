@@ -1,0 +1,22 @@
+{
+  "name": "xiaoaojiao",
+  "version": "0.0.1",
+  "description": "soho tool",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TSOHO/xiaoaojiao.git"
+  },
+  "keywords": [
+    "tool"
+  ],
+  "author": "h.yingzi",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TSOHO/xiaoaojiao/issues"
+  },
+  "homepage": "https://github.com/TSOHO/xiaoaojiao#readme"
+}
