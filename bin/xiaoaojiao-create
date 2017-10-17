@@ -9,88 +9,98 @@ const mkdirp = require('mkdirp')
 const fs = require('fs')
 const path = require('path')
 
-var APP = {
-  start: function () {
-    const base = this
+const spinner = ora('loading')
 
-    base.spinner = ora('loading')
-    inquirer.prompt({
-      type: 'input',
-      name: 'directory',
-      message: '请输入要创建项目的目录名称：'
-    }).then(answers => {
-      const directory = answers.directory
-      if (fs.existsSync(directory)) {
-        inquirer.prompt({
-          type: 'confirm',
-          name: 'ok',
-          message: `[${chalk.blue(directory)}]目录已经存在，是否覆盖 ?`
-        }).then(answers => {
-          if (answers.ok) {
-            base.mkdir(directory, base.getList)
-          }
-        })
-      } else {
-        base.mkdir(directory, base.getList)
-      }
-    })
-  },
-  mkdir: function (path, callback) {
-    mkdirp(path, function (err) {
-      if (err) {
-        console.error(err)
-      } else {
-        setTimeout(() => { callback && callback() }, 100)
-      }
-    })
-  },
-  getList: function () {
-    const base = this
-
-    githubAPI.getTemplateList().then(response => {
-      const templates = response.data.filter(v => v.name.indexOf('template-') > -1)
-
-      base.inquirerList(templates)
-    })
-  },
-  inquirerList: function (templates) {
-    const base = this
-
-    const list = templates.map(v => {
-      const name = v.name.replace('template-', '')
-
-      return {
-        name: chalk.yellow('★') + ' ' + chalk.blue(name) + ' - ' + v.description,
-        value: name,
-        short: name
-      }
-    })
-
-    inquirer.prompt({
-      type: 'list',
-      message: '请选择要使用的模板\n',
-      name: 'template',
-      choices: list
-    }).then(answers => {
-      base.pullTemplate(answers.template)
-    })
-  },
-  pullTemplate: function (name) {
-    const base = this
-
-    if (fs.existsSync(base.localPackage(name))) {
-      console.log('has')
+function start () {
+  inquirer.prompt({
+    type: 'input',
+    name: 'directory',
+    message: '请输入要创建项目的目录名称：'
+  }).then(answers => {
+    const directory = answers.directory
+    if (fs.existsSync(directory)) {
+      inquirer.prompt({
+        type: 'confirm',
+        name: 'ok',
+        message: `[${chalk.blue(directory)}]目录已经存在，是否覆盖 ?`
+      }).then(answers => {
+        if (answers.ok) {
+          mkdir(directory, getList)
+        }
+      })
     } else {
-      console.log('no')
+      mkdir(directory, getList)
     }
-    // return fs.existsSync(this.localPackage) ? getGithubPackageV(require(this.localPackage).version) : requestGithub()
-  },
-  localTemplate: function (name) {
-    return path.join(__dirname, '../template', 'template-' + name + '-master')
-  },
-  localPackage: function (name) {
-    return path.join(__dirname, '../template', 'template-' + name + '-master/package.json')
-  }
+  })
 }
 
-APP.start()
+/**
+ * 创建文件夹
+ *
+ * @param {any} path
+ * @param {any} callback
+ */
+function mkdir (path, callback) {
+  mkdirp(path, function (err) {
+    if (err) {
+      console.error(err)
+    } else {
+      setTimeout(() => { callback && callback() }, 100)
+    }
+  })
+}
+
+/**
+ * 获取模板列表
+ *
+ */
+function getList () {
+  spinner.start()
+  githubAPI.getTemplateList().then(function (response) {
+    const templates = response.data.filter(v => v.name.indexOf('template-') > -1)
+
+    spinner.stop()
+    inquirerList(templates)
+  })
+}
+
+/**
+ * 选定模板
+ *
+ * @param {any} templates
+ */
+function inquirerList (templates) {
+  const list = templates.map(v => {
+    const name = v.name.replace('template-', '')
+
+    return {
+      name: chalk.yellow('★') + ' ' + chalk.blue(name) + ' - ' + v.description,
+      value: name,
+      short: name
+    }
+  })
+
+  inquirer.prompt({
+    type: 'list',
+    message: '请选择要使用的模板',
+    name: 'template',
+    choices: list
+  }).then(answers => {
+    pullTemplate(answers.template)
+  })
+}
+
+/**
+ * 拉去模板文件
+ *
+ */
+function pullTemplate (name) {
+  if (fs.existsSync(githubAPI.localPackage(name))) {
+    console.log('has')
+  } else {
+    console.log('no')
+  }
+  // return fs.existsSync(this.localPackage) ? getGithubPackageV(require(this.localPackage).version) : requestGithub()
+}
+
+start()
