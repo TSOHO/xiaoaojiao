@@ -7,7 +7,7 @@ program
   .usage('<command>')
   .command('create', '从模板生成一个新项目').alias('c')
   .action(cmd => {
-    if (cmd !== 'create' && cmd !== 'list') {
+    if (cmd !== 'create') {
       program.outputHelp()
     }
   })

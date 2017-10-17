@@ -4,103 +4,240 @@ const githubAPI = require('../util/github')
 const inquirer = require('inquirer')
 const chalk = require('chalk')
 const ora = require('ora')
-const mkdirp = require('mkdirp')
+const ProgressBar = require('progress')
+const shell = require('shelljs')
+
+const util = require('../util/util')
 
 const fs = require('fs')
 const path = require('path')
 
-const spinner = ora('loading')
+const spinner = ora(chalk.green('loading……'))
 
-function start () {
-  inquirer.prompt({
-    type: 'input',
-    name: 'directory',
-    message: '请输入要创建项目的目录名称：'
-  }).then(answers => {
-    const directory = answers.directory
-    if (fs.existsSync(directory)) {
-      inquirer.prompt({
-        type: 'confirm',
-        name: 'ok',
-        message: `[${chalk.blue(directory)}]目录已经存在，是否覆盖 ?`
-      }).then(answers => {
-        if (answers.ok) {
-          mkdir(directory, getList)
+var APP = {
+  start () {
+    const base = this
+
+    base.directory = ''
+
+    inquirer.prompt({
+      type: 'input',
+      name: 'directory',
+      message: '请输入要创建项目的目录名称：'
+    }).then(answers => {
+      const directory = answers.directory
+      if (fs.existsSync(directory)) {
+        inquirer.prompt({
+          type: 'confirm',
+          name: 'ok',
+          message: `[${chalk.blue(directory)}]目录已经存在，是否覆盖 ?`
+        }).then(answers => {
+          if (answers.ok) {
+            util._mkdir(directory).then(base.getList.bind(base))
+          }
+        })
+      } else {
+        util._mkdir(directory).then(base.getList.bind(base))
+      }
+
+      base.directory = directory
+    })
+  },
+
+  /**
+   * 获取github模板列表
+   *
+   */
+  getList () {
+    const base = this
+
+    spinner.start()
+    githubAPI.getTemplateList().then(function (body) {
+      spinner.stop()
+
+      const templates = JSON.parse(body).filter(v => v.name.indexOf('template-') > -1)
+
+      base.inquirerList(templates)
+    }).catch(err => {
+      spinner.stop()
+      console.log(err)
+    })
+  },
+
+  /**
+   * 选择模板
+   *
+   * @param {any} templates
+   */
+  inquirerList (templates) {
+    const base = this
+
+    const list = templates.map(v => {
+      const name = v.name.replace('template-', '')
+
+      return {
+        name: chalk.yellow('★') + ' ' + chalk.blue(name) + ' - ' + v.description,
+        value: name,
+        short: name
+      }
+    })
+
+    inquirer.prompt({
+      type: 'list',
+      message: '请选择要使用的模板',
+      name: 'template',
+      choices: list
+    }).then(answers => {
+      base.pullTemplate(answers.template)
+    })
+  },
+
+  /**
+   * 抓取模板
+   *
+   * @param {any} name
+   */
+  pullTemplate (name) {
+    const base = this
+
+    if (fs.existsSync(githubAPI.localPackage(name))) {
+      base.compareVersion(name, require(githubAPI.localPackage(name)).version)
+    } else {
+      base.pullGithubMaster(name)
+    }
+  },
+
+  /**
+   * 对比模板文件版本
+   *
+   * @param {any} name
+   * @param {any} version
+   */
+  compareVersion (name, version) {
+    const base = this
+
+    githubAPI.getPackage(name).then(body => {
+      const newVersion = JSON.parse(body).version
+      if (newVersion !== version) {
+        console.log(chalk.green('# local :'), chalk.blue(`v${version}`))
+        console.log(chalk.green('# github:'), chalk.blue(`v${newVersion}`))
+        base.selectPackage(name, base.directory)
+      } else {
+        base.createProject(base.directory, name)
+      }
+    })
+  },
+
+  /**
+   * 选择对应版本的模板
+   *
+   * @param {any} name
+   * @param {any} directory
+   */
+  selectPackage (name, directory) {
+    const base = this
+
+    inquirer.prompt([{
+      type: 'confirm',
+      message: 'github 有新的版本，是否下载 ?',
+      name: 'ok'
+    }]).then(answers => {
+      if (answers.ok) {
+        base.pullGithubMaster(name)
+      } else {
+        base.createProject(directory, name)
+      }
+    })
+  },
+
+  /**
+   * 下载github模板文件
+   *
+   * @param {any} name
+   */
+  pullGithubMaster (name) {
+    spinner.start()
+
+    const base = this
+    const req = githubAPI.getMasterZip(name)
+
+    req.on('response', function (res) {
+      const len = parseInt(res.headers['content-length'], 10)
+      let bar = ''
+
+      spinner.stop()
+
+      if (!isNaN(len)) {
+        spinner.stop()
+
+        bar = new ProgressBar('  downloading [:bar] :percent :etas', {
+          complete: '>',
+          incomplete: ' ',
+          total: len,
+          clear: true
+        })
+      }
+
+      const temp = path.resolve(__dirname, `../temp${+new Date()}.zip`)
+
+      res.on('data', function (chunk) {
+        bar && bar.tick(chunk.length)
+      }).pipe(fs.createWriteStream(temp))
+
+      res.on('end', function () {
+        if (bar) {
+          bar.terminate()
+        } else {
+          spinner.stop()
         }
+
+        util._unzip(temp, path.resolve(__dirname, '../templates')).then(function (zip) {
+          fs.unlinkSync(zip)
+          base.createProject(base.directory, name)
+        })
+      })
+    }).on('error', function (err) {
+      spinner.stop()
+      console.log(err)
+    })
+
+    req.end()
+  },
+
+  /**
+   * 从模板创建项目文件
+   *
+   * @param {any} directory
+   * @param {any} name
+   */
+  createProject (directory, name) {
+    const base = this
+
+    util._mkdir(directory).then(function (path) {
+      util._clone(githubAPI.localTemplate(name), path).then(function () {
+        base.endTips(path)
+      })
+    })
+  },
+  endTips (path) {
+    console.log(chalk.green('# 创建成功！'))
+    console.log(chalk.green('# 开始安装模板依赖...'))
+    shell.cd(path)
+    if (shell.which('cnpm')) {
+      shell.exec('cnpm install', function () {
+        shell.exec('npm start')
       })
     } else {
-      mkdir(directory, getList)
+      shell.exec('npm install', function () {
+        shell.exec('npm start')
+      })
     }
-  })
-}
-
-/**
- * 创建文件夹
- *
- * @param {any} path
- * @param {any} callback
- */
-function mkdir (path, callback) {
-  mkdirp(path, function (err) {
-    if (err) {
-      console.error(err)
-    } else {
-      setTimeout(() => { callback && callback() }, 100)
-    }
-  })
-}
-
-/**
- * 获取模板列表
- *
- */
-function getList () {
-  spinner.start()
-  githubAPI.getTemplateList().then(function (response) {
-    const templates = response.data.filter(v => v.name.indexOf('template-') > -1)
-
-    spinner.stop()
-    inquirerList(templates)
-  })
-}
-
-/**
- * 选定模板
- *
- * @param {any} templates
- */
-function inquirerList (templates) {
-  const list = templates.map(v => {
-    const name = v.name.replace('template-', '')
-
-    return {
-      name: chalk.yellow('★') + ' ' + chalk.blue(name) + ' - ' + v.description,
-      value: name,
-      short: name
-    }
-  })
-
-  inquirer.prompt({
-    type: 'list',
-    message: '请选择要使用的模板',
-    name: 'template',
-    choices: list
-  }).then(answers => {
-    pullTemplate(answers.template)
-  })
-}
-
-/**
- * 拉去模板文件
- *
- */
-function pullTemplate (name) {
-  if (fs.existsSync(githubAPI.localPackage(name))) {
-    console.log('has')
-  } else {
-    console.log('no')
   }
-  // return fs.existsSync(this.localPackage) ? getGithubPackageV(require(this.localPackage).version) : requestGithub()
 }
 
-start()
+console.log()
+process.on('exit', function () {
+  console.log()
+})
+
+APP.start()
