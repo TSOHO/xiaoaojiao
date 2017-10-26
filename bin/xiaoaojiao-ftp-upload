@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+
+const Ftp = require('../ftp/index')
+
+const configPath = require(process.cwd() + '/ftp-config.json')
+
+const _ftp = new Ftp(configPath)
+
+_ftp.connect()

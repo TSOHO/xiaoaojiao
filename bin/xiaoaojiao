@@ -5,9 +5,10 @@ const program = require('commander')
 program
   .version(require('../package').version)
   .usage('<command>')
-  .command('create', '从模板生成一个新项目').alias('c')
+  .command('create', '从模板生成一个新项目')
+  .command('ftp', '上传文件到指定FTP服务器')
   .action(cmd => {
-    if (cmd !== 'create') {
+    if (cmd !== 'create' && cmd !== 'ftp') {
       program.outputHelp()
     }
   })
