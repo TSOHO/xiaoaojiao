@@ -12,10 +12,10 @@ const util = require('../util/util')
 const spinner = ora('loading……')
 
 class Ftp {
-  constructor (config) {
+  constructor(config) {
     this.init(config)
   }
-  init (config) {
+  init(config) {
     const base = this
 
     base.config = config
@@ -23,6 +23,7 @@ class Ftp {
     base.client = new Client(config.ftp)
     base.files = util.getFilesList(base.abslocal)
     base.fileslen = base.files.length
+    base.filesSize = 0
 
     const columns = process.stderr.columns
     const colWidths = [
@@ -65,7 +66,7 @@ class Ftp {
    *
    * @memberOf Ftp
    */
-  connect () {
+  connect() {
     const base = this
 
     console.log('')
@@ -76,11 +77,11 @@ class Ftp {
     base.ready().then(base.upload.bind(base))
   }
 
-  ready () {
+  ready() {
     const base = this
 
-    return new Promise(function (resolve, reject) {
-      base.client.on('ready', function () {
+    return new Promise(function(resolve, reject) {
+      base.client.on('ready', function() {
         spinner.stop()
         console.log(chalk.blue('> 连接成功'))
         resolve()
@@ -88,7 +89,7 @@ class Ftp {
     })
   }
 
-  upload () {
+  upload() {
     const base = this
 
     console.log(chalk.blue('> 开始上传'))
@@ -99,11 +100,11 @@ class Ftp {
     base.mkdir(base.files)
   }
 
-  mkdir (files) {
+  mkdir(files) {
     const base = this
     const remotepath = base.remotepath(files[0])
 
-    base.client.mkdir(path.dirname(remotepath), true, function (err) {
+    base.client.mkdir(path.dirname(remotepath), true, function(err) {
       if (err) {
         return console.log(err)
       }
@@ -112,7 +113,7 @@ class Ftp {
     })
   }
 
-  puts (file) {
+  puts(file) {
     const base = this
     const rs = fs.createReadStream(file)
 
@@ -123,11 +124,11 @@ class Ftp {
       clear: true
     })
 
-    rs.on('data', function (chunk) {
+    rs.on('data', function(chunk) {
       bar.tick(chunk.length)
     })
 
-    rs.on('end', function () {
+    rs.on('end', function() {
       bar.terminate()
     })
 
@@ -135,7 +136,9 @@ class Ftp {
     const size = fs.statSync(file).size
     const sizekb = util.formatSize(size)
 
-    base.client.put(rs, remotepath, function (err) {
+    base.filesSize += size
+
+    base.client.put(rs, remotepath, function(err) {
       if (err) {
         base.tableLog([
           chalk.red('>', remotepath),
@@ -160,7 +163,7 @@ class Ftp {
     })
   }
 
-  tableLog (arr) {
+  tableLog(arr) {
     const base = this
 
     if (base.table.length > 0) {
@@ -170,16 +173,16 @@ class Ftp {
     console.log(base.table.toString(arr))
   }
 
-  end () {
+  end() {
     const base = this
     let time = +new Date() - base.startTime
 
     console.log('')
-    console.log(chalk.blue(`> 共上传文件: ${base.fileslen}个    用时: ${time / 1000}s`))
+    console.log(chalk.blue(`> 共上传文件: ${base.fileslen}个    大小：${util.formatSize(base.filesSize)}    用时: ${time / 1000}s`))
     base.client.end()
   }
 
-  remotepath (file) {
+  remotepath(file) {
     return file.replace(this.abslocal, this.config.remote).replace(/\/\//g, '/')
   }
 }
