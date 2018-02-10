@@ -38,6 +38,20 @@ module.exports = {
       })
     })
   },
+  getReposTree: function (url) {
+    return new Promise(function (resolve, reject) {
+      request({
+        url: url,
+        headers: headers
+      }, function (error, response, body) {
+        if (error) {
+          reject(error)
+        } else {
+          resolve(body)
+        }
+      })
+    })
+  },
   getMasterZip: function (name) {
     return request({
       url: `https://www.github.com//TSOHO/template-${name}/archive/master.zip`

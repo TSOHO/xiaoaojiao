@@ -1,0 +1,104 @@
+#!/usr/bin/env node
+
+// TODO 增加目录查看，上一页，下一页
+const fs = require('fs')
+const chalk = require('chalk')
+const ora = require('ora')
+const githubAPI = require('../util/github')
+const inquirer = require('inquirer')
+const request = require('request')
+const spinner = ora(chalk.green('loading……'))
+const url = (process.argv.slice(2).length === 2 && process.argv.slice(2)[0]) || 'https://api.github.com/repos/TSOHO/box/contents/'
+
+let CACHE = {}
+let PREV = ''
+let NEXT = ''
+let SELECT = []
+
+const run = async() => {
+  const files = await checkCache('master', url)
+  const answer = await propmtList(files)
+
+  spinner.start()
+  let total = answer.files.length
+  let coIndex = 0
+  let downFiles = []
+  for (let index = 0; index < answer.files.length; index++) {
+    const item = answer.files[index]
+    const name = item.name
+
+    if (fs.existsSync(name)) {
+      spinner.stop()
+      const overlay = await fileExist(name)
+
+      if (!overlay.ok) {
+        total--
+        continue
+      }
+      spinner.start()
+    }
+
+    coIndex++
+    downFiles.push(name)
+
+    spinner.text = `正在下载 ${coIndex}/${total}   -   ${chalk.blue(name)}`
+    await saveFiles(name, item.url)
+  }
+  spinner.stop()
+  console.log('')
+  console.log(chalk.blue(`  成功下载 ${total} 个文件`))
+  console.log(chalk.green(`  ${downFiles.join(' ')}`))
+}
+
+console.log(chalk.gray(`仓库地址：${url}`))
+run()
+
+function checkCache (dirname, url) {
+  spinner.start()
+  return new Promise(function (resolve, reject) {
+    if (CACHE[dirname]) {
+      spinner.stop()
+      resolve(getFileList(CACHE[dirname]))
+    } else {
+      githubAPI.getReposTree(url).then(body => {
+        spinner.stop()
+        resolve(getFileList(JSON.parse(body)))
+      })
+    }
+  })
+}
+function getFileList (list) {
+  return list.map(v => {
+    return {
+      name: v.type === 'dir' ? v.name + '/' : v.name,
+      value: {
+        name: v.name,
+        type: v.type,
+        url: v.download_url
+      }
+    }
+  })
+}
+
+function propmtList (list) {
+  return new Promise(function (resolve, reject) {
+    inquirer.prompt({type: 'checkbox', message: '请选择要下载的文件', name: 'files', choices: list}).then(answers => {
+      resolve(answers)
+    })
+  })
+}
+
+function fileExist (name) {
+  return new Promise((resolve, reject) => {
+    inquirer.prompt({
+      type: 'confirm',
+      name: 'ok',
+      message: `文件${name}已存在，是否覆盖？`
+    }).then(answers => resolve(answers))
+  })
+}
+function saveFiles (name, url) {
+  return new Promise(function (resolve, reject) {
+    request.get(url).pipe(fs.createWriteStream(name)).on('close', resolve)
+  })
+}
